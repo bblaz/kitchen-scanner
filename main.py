@@ -585,7 +585,13 @@ async def run() -> None:
                 pass
         if scan_task is not None:
             try:
-                await scan_task
+                await asyncio.wait_for(scan_task, timeout=1.0)
+            except asyncio.TimeoutError:
+                scan_task.cancel()
+                try:
+                    await scan_task
+                except asyncio.CancelledError:
+                    pass
             except asyncio.CancelledError:
                 pass
         logger.info("Exited cleanly.")
