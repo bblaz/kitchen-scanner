@@ -269,7 +269,6 @@ KEYCODE_TO_CHAR = {
     ecodes.KEY_Z: "z",
     # punctuation (unshifted)
     ecodes.KEY_MINUS: "-",
-    ecodes.KEY_UNDERSCORE: "_",  # sometimes not separate; some kernels map underscore via shift+minus
     ecodes.KEY_SEMICOLON: ";",
     ecodes.KEY_APOSTROPHE: "'",
     ecodes.KEY_COMMA: ",",
@@ -277,6 +276,10 @@ KEYCODE_TO_CHAR = {
     ecodes.KEY_SLASH: "/",
     ecodes.KEY_SPACE: " ",
 }
+
+# Add underscore mapping only if present (rare; usually shift+minus).
+if hasattr(ecodes, "KEY_UNDERSCORE"):
+    KEYCODE_TO_CHAR[getattr(ecodes, "KEY_UNDERSCORE")] = "_"
 
 # Shifted punctuation map for common US layout. For your codes we mainly need ':' which is shift+semicolon.
 SHIFTED_KEYCODE_TO_CHAR = {
