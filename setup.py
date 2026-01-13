@@ -1,3 +1,6 @@
+import os
+import shutil
+
 from setuptools import Command, find_packages, setup
 
 
@@ -14,6 +17,12 @@ class BDistWheel(Command):
 
     def run(self) -> None:
         pass
+
+    @staticmethod
+    def egg2dist(egginfo_dir: str, distinfo_dir: str) -> None:
+        if os.path.exists(distinfo_dir):
+            shutil.rmtree(distinfo_dir)
+        shutil.copytree(egginfo_dir, distinfo_dir)
 
 setup(
     name="kitchen-scanner",
