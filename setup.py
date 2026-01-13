@@ -22,6 +22,10 @@ class BDistWheel(Command):
         if os.path.exists(distinfo_dir):
             shutil.rmtree(distinfo_dir)
         shutil.copytree(egginfo_dir, distinfo_dir)
+        pkg_info = os.path.join(distinfo_dir, "PKG-INFO")
+        metadata = os.path.join(distinfo_dir, "METADATA")
+        if os.path.exists(pkg_info) and not os.path.exists(metadata):
+            os.rename(pkg_info, metadata)
 
 setup(
     name="kitchen-scanner",
