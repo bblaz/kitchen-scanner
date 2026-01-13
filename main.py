@@ -360,7 +360,7 @@ async def scans_from_device(dev: InputDevice):
         if keystate != 1:
             continue
 
-        if keycode == ecodes.KEY_ENTER:
+        if keycode in (ecodes.KEY_ENTER, ecodes.KEY_KPENTER, ecodes.KEY_TAB):
             scan = "".join(buffer).strip()
             buffer.clear()
             if scan:
