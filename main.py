@@ -454,6 +454,7 @@ async def run() -> None:
     state = State(mode=Mode(DEFAULT_MODE))
     stop_event = asyncio.Event()
     queue: asyncio.Queue[ApiJob] = asyncio.Queue(maxsize=1000)
+    dev: Optional[InputDevice] = None
 
     # Handle SIGTERM/SIGINT for clean shutdown
     loop = asyncio.get_running_loop()
@@ -475,6 +476,11 @@ async def run() -> None:
                         continue
                     logger.debug("Pending task: %s", task.get_name())
             stop_event.set()
+            if dev is not None:
+                try:
+                    dev.close()
+                except Exception:
+                    logger.debug("Failed to close scanner device on shutdown.", exc_info=True)
             return
         logger.warning("Second interrupt received; forcing exit.")
         os._exit(1)
@@ -541,10 +547,20 @@ async def run() -> None:
 
     finally:
         stop_event.set()
+        if dev is not None:
+            try:
+                dev.close()
+            except Exception:
+                logger.debug("Failed to close scanner device on shutdown.", exc_info=True)
         # Give tasks a moment to exit
         await asyncio.sleep(0.1)
-        worker_task.cancel()
         idle_task.cancel()
+        if queue.qsize() > 0:
+            try:
+                await asyncio.wait_for(queue.join(), timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning("Timed out waiting for queued API jobs to finish.")
+        worker_task.cancel()
         # Drain cancellation
         for t in (worker_task, idle_task):
             try:
