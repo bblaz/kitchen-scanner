@@ -55,6 +55,7 @@ setup(
         "evdev",
         "httpx",
         "tenacity",
+        "python-dotenv",
     ],
     python_requires=">=3.9",
     cmdclass={"bdist_wheel": BDistWheel},

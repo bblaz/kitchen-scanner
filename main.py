@@ -40,7 +40,7 @@ Reliability strategy
 
 Dependencies
 ------------
-pip install evdev httpx tenacity
+pip install evdev httpx tenacity python-dotenv
 
 Run
 ---
@@ -65,6 +65,7 @@ from enum import Enum
 from typing import Optional, Tuple
 
 import httpx
+from dotenv import load_dotenv
 from evdev import InputDevice, ecodes, list_devices
 from tenacity import (
     retry,
@@ -77,6 +78,8 @@ from tenacity import (
 # ----------------------------
 # Configuration (edit as needed)
 # ----------------------------
+
+load_dotenv()
 
 # Default mode after inactivity:
 DEFAULT_MODE = "use"  # per your request
