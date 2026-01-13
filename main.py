@@ -364,6 +364,7 @@ async def scans_from_device(dev: InputDevice):
             scan = "".join(buffer).strip()
             buffer.clear()
             if scan:
+                logger.debug("Scan read: %s", scan)
                 yield scan
             continue
 
