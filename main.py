@@ -342,7 +342,7 @@ async def scans_from_device(dev: InputDevice):
 
     This implementation:
     - handles shift for ':' and '_' (common in your command format)
-    - lowercases letters (your codes are lowercase anyway)
+    - preserves case for letters based on shift state
     """
     logger.info("Listening for scans on %s (%s)", dev.path, dev.name)
     buffer = []
@@ -376,7 +376,10 @@ async def scans_from_device(dev: InputDevice):
         if shift and keycode in SHIFTED_KEYCODE_TO_CHAR:
             buffer.append(SHIFTED_KEYCODE_TO_CHAR[keycode])
         elif keycode in KEYCODE_TO_CHAR:
-            buffer.append(KEYCODE_TO_CHAR[keycode])
+            char = KEYCODE_TO_CHAR[keycode]
+            if shift and char.isalpha():
+                char = char.upper()
+            buffer.append(char)
         else:
             # Unknown key: ignore (or log at debug)
             logger.debug("Ignoring unmapped keycode: %s", keycode)
