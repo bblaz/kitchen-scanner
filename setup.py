@@ -24,8 +24,24 @@ class BDistWheel(Command):
         shutil.copytree(egginfo_dir, distinfo_dir)
         pkg_info = os.path.join(distinfo_dir, "PKG-INFO")
         metadata = os.path.join(distinfo_dir, "METADATA")
-        if os.path.exists(pkg_info) and not os.path.exists(metadata):
-            os.rename(pkg_info, metadata)
+        if os.path.exists(pkg_info):
+            shutil.copyfile(pkg_info, metadata)
+        if not os.path.exists(metadata):
+            with open(metadata, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "Metadata-Version: 2.1\n"
+                    "Name: kitchen-scanner\n"
+                    "Version: 0.1.0\n"
+                )
+        wheel_file = os.path.join(distinfo_dir, "WHEEL")
+        if not os.path.exists(wheel_file):
+            with open(wheel_file, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "Wheel-Version: 1.0\n"
+                    "Generator: fallback-bdist-wheel\n"
+                    "Root-Is-Purelib: true\n"
+                    "Tag: py3-none-any\n"
+                )
 
 setup(
     name="kitchen-scanner",
