@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kitchen-scanner"
+version = "0.1.0"
+description = "Kitchen barcode scanner service"
+authors = [{ name = "Blaž Bregar", email = "blaz@aklaro.si" }]
+requires-python = ">=3.9"
+dependencies = [
+  "evdev",
+  "httpx",
+  "tenacity",
+]
