@@ -441,9 +441,17 @@ async def run() -> None:
     # Handle SIGTERM/SIGINT for clean shutdown
     loop = asyncio.get_running_loop()
 
+    interrupt_count = 0
+
     def _request_stop():
-        logger.info("Stop requested, shutting down...")
-        stop_event.set()
+        nonlocal interrupt_count
+        interrupt_count += 1
+        if interrupt_count == 1:
+            logger.info("Stop requested, shutting down...")
+            stop_event.set()
+            return
+        logger.warning("Second interrupt received; forcing exit.")
+        os._exit(1)
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
