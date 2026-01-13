@@ -534,8 +534,6 @@ async def run() -> None:
                     dev.close()
                 except Exception:
                     logger.debug("Failed to close scanner device on shutdown.", exc_info=True)
-            if scan_task is not None:
-                scan_task.cancel()
             return
         logger.warning("Second interrupt received; forcing exit.")
         os._exit(1)
@@ -571,8 +569,6 @@ async def run() -> None:
         # Give tasks a moment to exit
         await asyncio.sleep(0.1)
         idle_task.cancel()
-        if scan_task is not None:
-            scan_task.cancel()
         if queue.qsize() > 0:
             try:
                 await asyncio.wait_for(queue.join(), timeout=5.0)
@@ -580,11 +576,16 @@ async def run() -> None:
                 logger.warning("Timed out waiting for queued API jobs to finish.")
         worker_task.cancel()
         # Drain cancellation
-        for t in (worker_task, idle_task, scan_task):
+        for t in (worker_task, idle_task):
             if t is None:
                 continue
             try:
                 await t
+            except asyncio.CancelledError:
+                pass
+        if scan_task is not None:
+            try:
+                await scan_task
             except asyncio.CancelledError:
                 pass
         logger.info("Exited cleanly.")
