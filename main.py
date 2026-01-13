@@ -440,6 +440,58 @@ async def idle_reset_task(state: State, stop_event: asyncio.Event) -> None:
         await asyncio.sleep(1)
 
 
+async def _scan_loop(
+    dev: InputDevice,
+    state: State,
+    queue: asyncio.Queue[ApiJob],
+    stop_event: asyncio.Event,
+) -> None:
+    async for scan in scans_from_device(dev):
+        if stop_event.is_set():
+            break
+
+        state.touch()
+        event = parse_scan(scan)
+
+        # ----- State machine behavior -----
+        #
+        # State = current mode (STOCK/USE)
+        # Inputs:
+        #   - MODE_SWITCH events set state.mode
+        #   - ITEM events enqueue an API job depending on current state.mode
+        #   - PRODUCT events currently just log (stub)
+        #   - UNKNOWN events log and ignore
+        #
+        # Default state: USE
+        # Idle timeout: resets state.mode back to USE after IDLE_TIMEOUT_SECONDS
+        #
+        if event.kind == ScanKind.MODE_SWITCH and event.mode_target:
+            old = state.mode
+            state.mode = event.mode_target
+            logger.info("Mode switch: %s -> %s", old.value, state.mode.value)
+            continue
+
+        if event.kind == ScanKind.ITEM and event.item_id:
+            action = "stock" if state.mode == Mode.STOCK else "use"
+            # Enqueue without blocking forever; if queue is full, drop and log.
+            job = ApiJob(item_id=event.item_id, action=action)
+            try:
+                queue.put_nowait(job)
+                logger.info("Enqueued: item %s in mode %s -> %s",
+                            event.item_id, state.mode.value, action)
+            except asyncio.QueueFull:
+                logger.error("Queue full; dropping scan for item %s", event.item_id)
+            continue
+
+        if event.kind == ScanKind.PRODUCT and event.product_code:
+            # Stub: wire up later as you decide. We log it so you can see it works.
+            logger.info("Product barcode scanned (mode=%s): %s (no endpoint wired yet)",
+                        state.mode.value, event.product_code)
+            continue
+
+        logger.warning("Unknown scan ignored: %r", event.raw)
+
+
 async def run() -> None:
     """
     Main entry point.
@@ -455,6 +507,7 @@ async def run() -> None:
     stop_event = asyncio.Event()
     queue: asyncio.Queue[ApiJob] = asyncio.Queue(maxsize=1000)
     dev: Optional[InputDevice] = None
+    scan_task: Optional[asyncio.Task[None]] = None
 
     # Handle SIGTERM/SIGINT for clean shutdown
     loop = asyncio.get_running_loop()
@@ -481,6 +534,8 @@ async def run() -> None:
                     dev.close()
                 except Exception:
                     logger.debug("Failed to close scanner device on shutdown.", exc_info=True)
+            if scan_task is not None:
+                scan_task.cancel()
             return
         logger.warning("Second interrupt received; forcing exit.")
         os._exit(1)
@@ -500,50 +555,11 @@ async def run() -> None:
     dev = find_scanner_device(SCANNER_NAME_HINT)
 
     try:
-        async for scan in scans_from_device(dev):
-            if stop_event.is_set():
-                break
-
-            state.touch()
-            event = parse_scan(scan)
-
-            # ----- State machine behavior -----
-            #
-            # State = current mode (STOCK/USE)
-            # Inputs:
-            #   - MODE_SWITCH events set state.mode
-            #   - ITEM events enqueue an API job depending on current state.mode
-            #   - PRODUCT events currently just log (stub)
-            #   - UNKNOWN events log and ignore
-            #
-            # Default state: USE
-            # Idle timeout: resets state.mode back to USE after IDLE_TIMEOUT_SECONDS
-            #
-            if event.kind == ScanKind.MODE_SWITCH and event.mode_target:
-                old = state.mode
-                state.mode = event.mode_target
-                logger.info("Mode switch: %s -> %s", old.value, state.mode.value)
-                continue
-
-            if event.kind == ScanKind.ITEM and event.item_id:
-                action = "stock" if state.mode == Mode.STOCK else "use"
-                # Enqueue without blocking forever; if queue is full, drop and log.
-                job = ApiJob(item_id=event.item_id, action=action)
-                try:
-                    queue.put_nowait(job)
-                    logger.info("Enqueued: item %s in mode %s -> %s",
-                                event.item_id, state.mode.value, action)
-                except asyncio.QueueFull:
-                    logger.error("Queue full; dropping scan for item %s", event.item_id)
-                continue
-
-            if event.kind == ScanKind.PRODUCT and event.product_code:
-                # Stub: wire up later as you decide. We log it so you can see it works.
-                logger.info("Product barcode scanned (mode=%s): %s (no endpoint wired yet)",
-                            state.mode.value, event.product_code)
-                continue
-
-            logger.warning("Unknown scan ignored: %r", event.raw)
+        scan_task = asyncio.create_task(
+            _scan_loop(dev, state, queue, stop_event),
+            name="scan_loop",
+        )
+        await scan_task
 
     finally:
         stop_event.set()
@@ -555,6 +571,8 @@ async def run() -> None:
         # Give tasks a moment to exit
         await asyncio.sleep(0.1)
         idle_task.cancel()
+        if scan_task is not None:
+            scan_task.cancel()
         if queue.qsize() > 0:
             try:
                 await asyncio.wait_for(queue.join(), timeout=5.0)
@@ -562,7 +580,9 @@ async def run() -> None:
                 logger.warning("Timed out waiting for queued API jobs to finish.")
         worker_task.cancel()
         # Drain cancellation
-        for t in (worker_task, idle_task):
+        for t in (worker_task, idle_task, scan_task):
+            if t is None:
+                continue
             try:
                 await t
             except asyncio.CancelledError:
