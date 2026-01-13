@@ -91,6 +91,9 @@ SCANNER_NAME_HINT = os.getenv("KITCHEN_SCANNER_NAME_HINT", "").strip()
 # Base URL of your local API:
 API_BASE = os.getenv("KITCHEN_SCANNER_API_BASE", "http://localhost:8000").rstrip("/")
 
+# API key for Authorization header (Bearer token)
+API_KEY = os.getenv("KITCHEN_SCANNER_API_KEY", "").strip()
+
 # HTTP timeouts (seconds): connect, read
 HTTP_TIMEOUT = httpx.Timeout(connect=2.0, read=5.0, write=5.0, pool=5.0)
 
@@ -388,7 +391,10 @@ async def http_worker(queue: asyncio.Queue[ApiJob], stop_event: asyncio.Event) -
     Worker consuming ApiJob tasks and sending HTTP requests.
     Retries are handled by tenacity in post_item_action().
     """
-    async with httpx.AsyncClient() as client:
+    headers = {}
+    if API_KEY:
+        headers["Authorization"] = f"Bearer {API_KEY}"
+    async with httpx.AsyncClient(headers=headers) as client:
         while not stop_event.is_set():
             try:
                 job = await asyncio.wait_for(queue.get(), timeout=0.5)
