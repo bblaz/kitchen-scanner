@@ -232,9 +232,14 @@ def _retry_decorator():
 
 
 @_retry_decorator()
-async def post_item_action(client: httpx.AsyncClient, item_id: str, action: str) -> None:
+async def post_item_action(
+    client: httpx.AsyncClient,
+    item_id: str,
+    action: str,
+) -> httpx.Response:
     """
     POST item action. Retries on network errors and on 5xx responses.
+    Non-2xx responses are returned for logging without retry unless 5xx.
 
     action is "stock" or "use"
     """
@@ -243,8 +248,7 @@ async def post_item_action(client: httpx.AsyncClient, item_id: str, action: str)
     # Treat 5xx as transient for retry:
     if _is_transient_http_status(resp.status_code):
         resp.raise_for_status()
-    # For 4xx, don't retry; still raise to surface error:
-    resp.raise_for_status()
+    return resp
 
 
 # ----------------------------
@@ -405,8 +409,17 @@ async def http_worker(queue: asyncio.Queue[ApiJob], stop_event: asyncio.Event) -
                 continue
 
             try:
-                await post_item_action(client, job.item_id, job.action)
-                logger.info("OK: item %s -> %s", job.item_id, job.action)
+                resp = await post_item_action(client, job.item_id, job.action)
+                if 200 <= resp.status_code < 300:
+                    logger.info("OK: item %s -> %s", job.item_id, job.action)
+                else:
+                    logger.error(
+                        "FAILED: item %s -> %s (status=%s response=%s)",
+                        job.item_id,
+                        job.action,
+                        resp.status_code,
+                        resp.text,
+                    )
             except Exception as e:
                 # At this point retries are exhausted or error is non-retriable (e.g. 4xx).
                 # We log and drop the job. If you want "never lose", persist to SQLite instead.
