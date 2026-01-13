@@ -277,10 +277,6 @@ KEYCODE_TO_CHAR = {
     ecodes.KEY_SPACE: " ",
 }
 
-# Add underscore mapping only if present (rare; usually shift+minus).
-if hasattr(ecodes, "KEY_UNDERSCORE"):
-    KEYCODE_TO_CHAR[getattr(ecodes, "KEY_UNDERSCORE")] = "_"
-
 # Shifted punctuation map for common US layout. For your codes we mainly need ':' which is shift+semicolon.
 SHIFTED_KEYCODE_TO_CHAR = {
     ecodes.KEY_SEMICOLON: ":",  # shift+;
