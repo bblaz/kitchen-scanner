@@ -449,6 +449,15 @@ async def run() -> None:
         interrupt_count += 1
         if interrupt_count == 1:
             logger.info("Stop requested, shutting down...")
+            if logger.isEnabledFor(logging.DEBUG):
+                pending_jobs = queue.qsize()
+                logger.debug("Pending jobs in queue: %s", pending_jobs)
+                for task in asyncio.all_tasks(loop):
+                    if task is asyncio.current_task(loop=loop):
+                        continue
+                    if task.done():
+                        continue
+                    logger.debug("Pending task: %s", task.get_name())
             stop_event.set()
             return
         logger.warning("Second interrupt received; forcing exit.")
